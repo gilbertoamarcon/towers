@@ -1,102 +1,14 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <cmath>
-#include <stack>
 #include <list>
-#include <string>
+#include <time.h>
+#include <stdio.h>
 #include <iostream>
-
-using namespace std;
+#include <string>
+#include "state.hpp"
 
 #define NMAX	10000
 
-// State class definition
-class State{
-
-	public:
-
-		State *parent;
-
-		int g;
-		char *action;
-
-		stack<int> A;
-		stack<int> B;
-		stack<int> C;
-
-		// Constructor
-		State(State *parent,char *action){
-			*this = *parent;
-			this->parent = parent;
-			this->action = action;
-			this->g++;
-		}
-
-		State(char *in_str){
-			string str = in_str;
-			this->parent = NULL;
-			this->action = "_->_";
-			this->g = 0;
-			char stack_counter = 'C';
-			for(int i = str.size()-1; i >=0; i--){
-				if(str[i] == ','){
-					stack_counter--;
-					continue;
-				}
-				if(str[i] != '_'){
-					switch(stack_counter){
-						case 'A':
-							A.push(str[i]-48);
-							break;
-						case 'B':
-							B.push(str[i]-48);
-							break;
-						case 'C':
-							C.push(str[i]-48);
-							break;
-					}
-				}
-			}
-		}
-
-		// Return stack with children states
-		void expand(stack<State*> *children){
-			if(!A.empty()){
-				State *ab = new State(this,"A->B");
-				State *ac = new State(this,"A->C");
-				children->push(ab);
-				children->push(ac);
-				ab->A.pop();
-				ac->A.pop();
-				ab->B.push(A.top());
-				ac->C.push(A.top());
-			}
-			if(!B.empty()){
-				State *ba = new State(this,"B->A");
-				State *bc = new State(this,"B->C");
-				children->push(ba);
-				children->push(bc);
-				ba->B.pop();
-				bc->B.pop();
-				ba->A.push(B.top());
-				bc->C.push(B.top());
-			}
-			if(!C.empty()){
-				State *ca = new State(this,"C->A");
-				State *cb = new State(this,"C->B");
-				children->push(ca);
-				children->push(cb);
-				ca->C.pop();
-				cb->C.pop();
-				ca->A.push(C.top());
-				cb->B.push(C.top());
-			}
-		}
-
-};
-
-// Clear list
+// Clear list of states from memory
 void clear_list(list<State*> *lis);
 
 // Print plan
@@ -109,17 +21,24 @@ void print_stack(stack<int> st);
 void display(State *state);
 
 // Compare two stacks
-bool compare_stack(stack<int> sta, stack<int> stb);
+bool stack_equal(stack<int> sta, stack<int> stb);
 
 // Compare two states
-bool compare(State *sta, State *stb);
+bool state_equal(State *sta, State *stb);
 
+// Heuristic distance from node to goal
+int heuristic(State *node, State *goal);
+
+// Insert child to open list if correct conditions met
+void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal);
+
+// Search for a plan
 int search(State *start, State *goal, stack<State> *plan);
 
 int main(int argc, char **argv){
 
-	State *start		= new State("3201,_,_");
-	State *goal			= new State("3210,_,_");
+	State *start		= new State("01234,_,_");
+	State *goal			= new State("43210,_,_");
 	stack<State> *plan	= new stack<State>;
 
 	printf("Start: ");
@@ -185,8 +104,8 @@ void display(State *state){
 	printf(")\n");
 }
 
-// Compare two stacks
-bool compare_stack(stack<int> sta, stack<int> stb){
+// Check if two stacks are equal
+bool stack_equal(stack<int> sta, stack<int> stb){
 	if(sta.size() != stb.size()) return false;
 	while(!sta.empty()){
 		if(sta.top() != stb.top()) return false;
@@ -197,26 +116,43 @@ bool compare_stack(stack<int> sta, stack<int> stb){
 }
 
 // Compare two states
-bool compare(State *sta, State *stb){
-	if(!compare_stack(sta->A, stb->A)) return false;
-	if(!compare_stack(sta->B, stb->B)) return false;
-	if(!compare_stack(sta->C, stb->C)) return false;
+bool state_equal(State *sta, State *stb){
+	if(!stack_equal(sta->A, stb->A)) return false;
+	if(!stack_equal(sta->B, stb->B)) return false;
+	if(!stack_equal(sta->C, stb->C)) return false;
 	return true;
 }
 
-// Compare two states
-void new_child(State *child, list<State*> *open, list<State*> *closed){
+// Heuristic distance from node to goal
+int heuristic(State *node, State *goal){
+	stack<int> node_stack	= node->A;
+	stack<int> goal_stack	= goal->A;
+	int counter = goal_stack.size() - node_stack.size();
+	while(goal_stack.size() != node_stack.size())
+		goal_stack.pop();
+	int aux = 0;
+	while(!goal_stack.empty()){
+		if(node_stack.top() != goal_stack.top())
+			counter+=2;
+		node_stack.pop();
+		goal_stack.pop();
+	}
+	return counter;
+}
+
+// Insert child to open list if correct conditions met
+void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal){
 
 	// Check if in the closed list
 	for(State* node : *closed)
-		if(compare(child,node)){
+		if(state_equal(child,node)){
 			delete child;
 			return;
 		}
 
 	// Check if in the open list
 	for(State* node : *open)
-		if(compare(child,node)){
+		if(state_equal(child,node)){
 			if(child->g >= node->g){
 				delete child;
 				return;
@@ -226,10 +162,16 @@ void new_child(State *child, list<State*> *open, list<State*> *closed){
 			}
 		}
 
+	// Computing the heuristic
+	int h = heuristic(child,goal);
+
+	// Computing the estimated path cost
+	child->f = child->g + h;
+
 	// Inserting child into the sorted open list
 	list<State*>::iterator it = open->begin();
 	while(it != open->end())
-		if((*(it++))->g > child->g) break;
+		if((*(it++))->f > child->f) break;
 	open->insert(it,child);
 
 }
@@ -260,13 +202,13 @@ int search(State *start, State *goal, stack<State> *plan){
 		closed.push_back(state);
 
 		// Checking if goal found
-		if(compare(state,goal)) break;
+		if(state_equal(state,goal)) break;
 
 		// Expanding current node
 		state->expand(&children);
 
 		while(!children.empty()){
-			new_child(children.top(),&open,&closed);
+			new_child(children.top(),&open,&closed,goal);
 			children.pop();
 		}
 		num_exp_nodes++;
@@ -279,7 +221,7 @@ int search(State *start, State *goal, stack<State> *plan){
 	for(;;){
 
 		// Check if path completed
-		if(compare(state,start)) break;
+		if(state_equal(state,start)) break;
 
 		// Moving to parent node
 		state = state->parent;
