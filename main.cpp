@@ -18,23 +18,26 @@ class State{
 
 		State *parent;
 
-		float g;
+		int g;
+		char *action;
 
 		stack<int> A;
 		stack<int> B;
 		stack<int> C;
 
 		// Constructor
-		State(State *parent){
+		State(State *parent,char *action){
 			*this = *parent;
 			this->parent = parent;
+			this->action = action;
 			this->g++;
 		}
 
-		State(char *in_str, float g, State *parent){
+		State(char *in_str){
 			string str = in_str;
-			this->parent = parent;
-			this->g = g;
+			this->parent = NULL;
+			this->action = "_->_";
+			this->g = 0;
 			char stack_counter = 'C';
 			for(int i = str.size()-1; i >=0; i--){
 				if(str[i] == ','){
@@ -60,8 +63,8 @@ class State{
 		// Return stack with children states
 		void expand(stack<State*> *children){
 			if(!A.empty()){
-				State *ab = new State(this);
-				State *ac = new State(this);
+				State *ab = new State(this,"A->B");
+				State *ac = new State(this,"A->C");
 				children->push(ab);
 				children->push(ac);
 				ab->A.pop();
@@ -70,8 +73,8 @@ class State{
 				ac->C.push(A.top());
 			}
 			if(!B.empty()){
-				State *ba = new State(this);
-				State *bc = new State(this);
+				State *ba = new State(this,"B->A");
+				State *bc = new State(this,"B->C");
 				children->push(ba);
 				children->push(bc);
 				ba->B.pop();
@@ -80,8 +83,8 @@ class State{
 				bc->C.push(B.top());
 			}
 			if(!C.empty()){
-				State *ca = new State(this);
-				State *cb = new State(this);
+				State *ca = new State(this,"C->A");
+				State *cb = new State(this,"C->B");
 				children->push(ca);
 				children->push(cb);
 				ca->C.pop();
@@ -111,12 +114,12 @@ bool compare_stack(stack<int> sta, stack<int> stb);
 // Compare two states
 bool compare(State *sta, State *stb);
 
-bool search(State *start, State *goal, stack<State> *plan);
+int search(State *start, State *goal, stack<State> *plan);
 
 int main(int argc, char **argv){
 
-	State *start		= new State("301,_,42",0,NULL);
-	State *goal			= new State("43210,_,_",0,NULL);
+	State *start		= new State("3201,_,_");
+	State *goal			= new State("3210,_,_");
 	stack<State> *plan	= new stack<State>;
 
 	printf("Start: ");
@@ -127,7 +130,11 @@ int main(int argc, char **argv){
 	display(goal);
 	printf("\n");
 
-	if(search(start, goal, plan)){
+	int num_exp_nodes = search(start, goal, plan);
+	if(num_exp_nodes > 0){
+		printf("Plan found.\n");
+		printf("%d expanded nodes.\n",num_exp_nodes);
+		printf("%d actions.\n",plan->size());
 		printf("Plan: \n");
 		print_plan(*plan);
 		printf("\n");
@@ -168,6 +175,7 @@ void print_stack(stack<int> st){
 
 // State display
 void display(State *state){
+	printf(" %s ",state->action);
 	printf("(");
 	print_stack(state->A);
 	printf(",");
@@ -226,7 +234,7 @@ void new_child(State *child, list<State*> *open, list<State*> *closed){
 
 }
 
-bool search(State *start, State *goal, stack<State> *plan){
+int search(State *start, State *goal, stack<State> *plan){
 
 	stack<State*> children;
 	list<State*> open;
@@ -238,10 +246,11 @@ bool search(State *start, State *goal, stack<State> *plan){
 	open.push_back(start);
 	
 	// Search loop
+	int num_exp_nodes = 0;
 	for(;;){
 
 		// Checking if open empty (failure)
-		if(open.empty()) return false;
+		if(open.empty()) return -1;
 
 		// Visiting current node (least cost)
 		state = open.front();
@@ -260,6 +269,7 @@ bool search(State *start, State *goal, stack<State> *plan){
 			new_child(children.top(),&open,&closed);
 			children.pop();
 		}
+		num_exp_nodes++;
 	}
 
 	// Final path position
@@ -282,6 +292,6 @@ bool search(State *start, State *goal, stack<State> *plan){
 	clear_list(&open);
 	clear_list(&closed);
 
-	return true;
+	return num_exp_nodes;
 
 }
