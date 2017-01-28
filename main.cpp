@@ -7,6 +7,7 @@
 #include "state.hpp"
 
 #define NMAX	10000
+#define BEAM	10000
 
 // Clear list of states from memory
 void clear_list(list<State*> *lis);
@@ -37,8 +38,8 @@ int search(State *start, State *goal, stack<State> *plan);
 
 int main(int argc, char **argv){
 
-	State *start		= new State("01234,_,_");
-	State *goal			= new State("43210,_,_");
+	State *start		= new State("5026,734,1");
+	State *goal			= new State("76543210,_,_");
 	stack<State> *plan	= new stack<State>;
 
 	printf("Start: ");
@@ -132,8 +133,7 @@ int heuristic(State *node, State *goal){
 		goal_stack.pop();
 	int aux = 0;
 	while(!goal_stack.empty()){
-		if(node_stack.top() != goal_stack.top())
-			counter+=2;
+		counter += 2*abs(node_stack.top() - goal_stack.top());
 		node_stack.pop();
 		goal_stack.pop();
 	}
@@ -174,6 +174,10 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 		if((*(it++))->f > child->f) break;
 	open->insert(it,child);
 
+	// Beam search size limit to open list 
+	if(open->size() > BEAM)
+		open->pop_back();
+
 }
 
 int search(State *start, State *goal, stack<State> *plan){
@@ -191,8 +195,8 @@ int search(State *start, State *goal, stack<State> *plan){
 	int num_exp_nodes = 0;
 	for(;;){
 
-		// Checking if open empty (failure)
-		if(open.empty()) return -1;
+		// Checking if failure
+		if(num_exp_nodes++ == NMAX || open.empty()) return -1;
 
 		// Visiting current node (least cost)
 		state = open.front();
@@ -211,7 +215,6 @@ int search(State *start, State *goal, stack<State> *plan){
 			new_child(children.top(),&open,&closed,goal);
 			children.pop();
 		}
-		num_exp_nodes++;
 	}
 
 	// Final path position

@@ -31,7 +31,7 @@ State::State(char *in_str){
 			stack_counter--;
 			continue;
 		}
-		if(str[i] != '_'){
+		if(str[i] != '_' && str[i] != '-'){
 			switch(stack_counter){
 				case 'A':
 					A.push(str[i]-48);
