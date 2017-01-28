@@ -198,11 +198,15 @@ bool compare(State *sta, State *stb){
 
 // Compare two states
 void new_child(State *child, list<State*> *open, list<State*> *closed){
+
+	// Check if in the closed list
 	for(State* node : *closed)
 		if(compare(child,node)){
 			delete child;
 			return;
 		}
+
+	// Check if in the open list
 	for(State* node : *open)
 		if(compare(child,node)){
 			if(child->g >= node->g){
@@ -213,7 +217,13 @@ void new_child(State *child, list<State*> *open, list<State*> *closed){
 				break;
 			}
 		}
-	open->push_back(child);
+
+	// Inserting child into the sorted open list
+	list<State*>::iterator it = open->begin();
+	while(it != open->end())
+		if((*(it++))->g > child->g) break;
+	open->insert(it,child);
+
 }
 
 bool search(State *start, State *goal, stack<State> *plan){
