@@ -1,16 +1,43 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <list>
 #include <time.h>
-#include <stdio.h>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include "state.hpp"
+#include <string.h>
+#include <ctime>
 
-#define NMAX	10000
-#define BEAM	10000
+#define NMAX		10000
+#define BSIZE		256
+#define VERBOSE		0
+#define INI_PS		4
+#define END_PS		7
+#define OUT_FILE	"out.csv"
+
+// State class definition
+struct Performance{
+	int heuristic;
+	int beamsize;
+	int problem_size;
+	int problem_number;
+	int num_exp_nodes;
+	int num_actions;
+	double planning_time;
+};
+
+// Beam sizes to test
+int beamsizes[] = {5, 10, 15, 20, 25, 50, 100, NMAX};
+
+// Loading problems
+int load_problems(list<State*> *start_list, int min_size, int max_size);
+
+// Store performance results
+void store_performance(char *filename,stack<Performance> perf);
 
 // Clear list of states from memory
-void clear_list(list<State*> *lis);
+void clear_list(list<State*> *state_list,State* start, State* goal);
 
 // Print plan
 void print_plan(stack<State> plan);
@@ -27,50 +54,155 @@ bool stack_equal(stack<int> sta, stack<int> stb);
 // Compare two states
 bool state_equal(State *sta, State *stb);
 
-// Heuristic distance from node to goal
-int heuristic(State *node, State *goal);
+// Heuristic0
+int heuristic0(State *node, State *goal);
+
+// Heuristic1
+int heuristic1(State *node, State *goal);
 
 // Insert child to open list if correct conditions met
-void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal);
+void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal, int beamsize, bool heuristic);
 
 // Search for a plan
-int search(State *start, State *goal, stack<State> *plan);
+int search(State *start, State *goal, stack<State> *plan, int beamsize, bool heuristic);
 
 int main(int argc, char **argv){
 
-	State *start		= new State("5026,734,1");
-	State *goal			= new State("76543210,_,_");
-	stack<State> *plan	= new stack<State>;
+	stack<Performance> performance_stack;
 
-	printf("Start: ");
-	display(start);
-	printf("\n");
+	// For each heuristic
+	for(int h = 1; h >= 0; h--){
 
-	printf("Goal: ");
-	display(goal);
-	printf("\n");
+		// For each beam size to test
+		for(int b = 0; b < 8; b++){
 
-	int num_exp_nodes = search(start, goal, plan);
-	if(num_exp_nodes > 0){
-		printf("Plan found.\n");
-		printf("%d expanded nodes.\n",num_exp_nodes);
-		printf("%d actions.\n",plan->size());
-		printf("Plan: \n");
-		print_plan(*plan);
-		printf("\n");
+			list<State*> start_list;
+
+			// Loading problem list
+			if(load_problems(&start_list,INI_PS,END_PS)){
+				printf("Error loading file.\n");
+				return 1;
+			}
+			printf("%d problems loaded.\n",start_list.size());
+
+			// Solving each problem
+			int problem_counter = -1;
+			while(!start_list.empty()){
+				problem_counter++;
+
+				// Loading starting node
+				State *start = start_list.front();
+				start_list.pop_front();
+
+				// Generating goal node
+				char goalBuffer[BSIZE] = "";
+				char auxBuffer[BSIZE] = "";
+				for(int i = 0; i < start->A.size(); i++){
+		  			sprintf(auxBuffer,"%d",start->A.size()-i-1);
+		  			strcat(goalBuffer,auxBuffer);
+				}
+				strcat(goalBuffer,",_,_");
+				State *goal = new State(goalBuffer);
+
+				// Running and taking execution time
+				stack<State> plan;
+		  		clock_t t_start = clock();
+				int num_exp_nodes = search(start, goal, &plan,beamsizes[b],h);
+				double planning_time = (double)(clock() - t_start)/(double)CLOCKS_PER_SEC;
+
+				// Preparing results to store to file
+				Performance perf;
+				perf.heuristic		= h;
+				perf.beamsize		= beamsizes[b];
+				perf.problem_size	= (problem_counter - problem_counter%20)/20 + INI_PS;
+				perf.problem_number	= problem_counter%20;
+				perf.num_exp_nodes	= num_exp_nodes;
+				perf.num_actions	= plan.size();
+				perf.planning_time	= planning_time;
+				performance_stack.push(perf);
+
+				// Presenting results on screen
+				if(VERBOSE){
+					if(num_exp_nodes > 0){
+						printf("Problem %d.\n",problem_counter);
+						printf("Start: ");
+						display(start);
+						printf("Goal: ");
+						display(goal);
+						printf("Plan found.\n");
+						printf("%d expanded nodes.\n",num_exp_nodes);
+						printf("%d actions.\n",plan.size());
+						printf("%f seconds.\n",planning_time);
+						printf("Plan: \n");
+						print_plan(plan);
+						printf("\n");
+					}
+					else
+						printf("Plan failed.\n");
+				}else
+					printf("Heuristic %d, beam size %d, problem size %d, problem number %3d, planning time %.6f s.\n",perf.heuristic, perf.beamsize, perf.problem_size, perf.problem_number, perf.planning_time);
+
+			}
+
+		}
 	}
-	else
-		printf("Plan failed.\n");
+
+	// Storing performance results to file
+	store_performance(OUT_FILE,performance_stack);
 
 	return 0;
 
 }
 
+int load_problems(list<State*> *start_list, int min_size, int max_size){
+	
+	char nameBuffer[BSIZE] = "";
+	char fileBuffer[BSIZE] = ""; 
+	
+	for(int i = min_size; i <= max_size; i++){
+		sprintf(nameBuffer,"problems/perms-%d.txt",i);
+		FILE *file = NULL;
+		file = fopen(nameBuffer,"r");
+		if(file == NULL || fgets(fileBuffer,BSIZE,file) == NULL){
+			printf("Error: Origin file '%s' not found.",nameBuffer);
+			return 1;
+		}
+		while(fgets(fileBuffer,BSIZE,file) != NULL && fileBuffer[0] != '\n'){
+			int j = -1;
+			while(fileBuffer[++j] != '\n');
+			fileBuffer[j] = '\0';
+			sprintf(fileBuffer,"%s,_,_",fileBuffer);
+			State *start = new State(fileBuffer);
+			start_list->push_back(start);
+		}
+		fclose(file);
+	}
+	return 0;
+}
+
+// Store performance results
+void store_performance(char *filename,stack<Performance> perf){
+	FILE *file = NULL;
+	file = fopen(filename,"w");
+	while(!perf.empty()){
+		fprintf(file,"%d,",perf.top().heuristic);
+		fprintf(file,"%d,",perf.top().beamsize);
+		fprintf(file,"%d,",perf.top().problem_size);
+		fprintf(file,"%d,",perf.top().problem_number);
+		fprintf(file,"%d,",perf.top().num_exp_nodes);
+		fprintf(file,"%d,",perf.top().num_actions);
+		fprintf(file,"%.6f\n",perf.top().planning_time);
+		perf.pop();
+	}
+	fclose(file);
+}
+
 // Clear list
-void clear_list(list<State*> *lis){
-	while(!lis->empty()){
-		delete lis->front();
-		lis->pop_front();
+void clear_list(list<State*> *state_list,State* start, State* goal){
+	while(!state_list->empty()){
+		if(state_list->front() != start && state_list->front() != goal)
+			delete state_list->front();
+		state_list->pop_front();
 	}
 }
 
@@ -95,7 +227,8 @@ void print_stack(stack<int> st){
 
 // State display
 void display(State *state){
-	printf(" %s ",state->action);
+	if(state->action[0] != '_')
+		printf(" %s ",state->action);
 	printf("(");
 	print_stack(state->A);
 	printf(",");
@@ -124,8 +257,16 @@ bool state_equal(State *sta, State *stb){
 	return true;
 }
 
-// Heuristic distance from node to goal
-int heuristic(State *node, State *goal){
+// Heuristic 0
+int heuristic0(State *node, State *goal){
+	stack<int> node_stack	= node->A;
+	stack<int> goal_stack	= goal->A;
+	int counter = goal_stack.size() - node_stack.size();
+	return counter;
+}
+
+// Heuristic 1
+int heuristic1(State *node, State *goal){
 	stack<int> node_stack	= node->A;
 	stack<int> goal_stack	= goal->A;
 	int counter = goal_stack.size() - node_stack.size();
@@ -141,7 +282,7 @@ int heuristic(State *node, State *goal){
 }
 
 // Insert child to open list if correct conditions met
-void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal){
+void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal, int beamsize, bool heuristic){
 
 	// Check if in the closed list
 	for(State* node : *closed)
@@ -163,7 +304,7 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 		}
 
 	// Computing the heuristic
-	int h = heuristic(child,goal);
+	int h = (heuristic)?heuristic1(child,goal):heuristic0(child,goal);
 
 	// Computing the estimated path cost
 	child->f = child->g + h;
@@ -175,12 +316,12 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 	open->insert(it,child);
 
 	// Beam search size limit to open list 
-	if(open->size() > BEAM)
+	if(open->size() > beamsize)
 		open->pop_back();
 
 }
 
-int search(State *start, State *goal, stack<State> *plan){
+int search(State *start, State *goal, stack<State> *plan, int beamsize, bool heuristic){
 
 	stack<State*> children;
 	list<State*> open;
@@ -212,7 +353,7 @@ int search(State *start, State *goal, stack<State> *plan){
 		state->expand(&children);
 
 		while(!children.empty()){
-			new_child(children.top(),&open,&closed,goal);
+			new_child(children.top(),&open,&closed,goal,beamsize,heuristic);
 			children.pop();
 		}
 	}
@@ -234,8 +375,8 @@ int search(State *start, State *goal, stack<State> *plan){
 	}
 
 	// Clearing memory
-	clear_list(&open);
-	clear_list(&closed);
+	clear_list(&open,start,goal);
+	clear_list(&closed,start,goal);
 
 	return num_exp_nodes;
 
