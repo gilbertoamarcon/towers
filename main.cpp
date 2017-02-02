@@ -11,9 +11,9 @@
 
 #define NMAX		10000
 #define BSIZE		256
-#define VERBOSE		0
-#define INI_PS		4
-#define END_PS		7
+#define VERBOSE		1
+#define INI_PS		7 //Fix 4
+#define END_PS		7 //Fix 7
 #define OUT_FILE	"out.csv"
 
 // State class definition
@@ -71,10 +71,10 @@ int main(int argc, char **argv){
 	stack<Performance> performance_stack;
 
 	// For each heuristic
-	for(int h = 1; h >= 0; h--){
+	for(int h = 1; h >= 1; h--){//h >= 0 FIX
 
 		// For each beam size to test
-		for(int b = 0; b < 8; b++){
+		for(int b = 7; b < 8; b++){ //b =0 FIX
 
 			list<State*> start_list;
 
@@ -155,10 +155,10 @@ int main(int argc, char **argv){
 }
 
 int load_problems(list<State*> *start_list, int min_size, int max_size){
-	
+
 	char nameBuffer[BSIZE] = "";
-	char fileBuffer[BSIZE] = ""; 
-	
+	char fileBuffer[BSIZE] = "";
+
 	for(int i = min_size; i <= max_size; i++){
 		sprintf(nameBuffer,"problems/perms-%d.txt",i);
 		FILE *file = NULL;
@@ -281,6 +281,75 @@ int heuristic1(State *node, State *goal){
 	return counter;
 }
 
+
+int heuristic2(State *node, State *goal) {
+  stack<int> node_stack	= node->A;
+	stack<int> goal_stack	= goal->A;
+	int goal_size = goal_stack.size();
+	int node_size = node_stack.size();
+
+	//count number of rings in place
+	while(goal_stack.size() != node_stack.size()){
+    goal_stack.pop();
+  }
+  int out_of_place = 0;
+  int pos = 0;
+  while (!goal_stack.empty())  {
+    pos ++;
+    if (node_stack.top() != goal_stack.top()) {
+      out_of_place = pos;
+    }
+    node_stack.pop();
+    goal_stack.pop();
+  }
+  int in_place = node_size - out_of_place;
+
+  //count number of rings in ideal location
+  stack<int> node_stack_B	= node->B;
+  stack<int> node_stack_C	= node->C;
+  stack<int> node_stack_B_copy;
+  stack<int> node_stack_C_copy;
+  int ideal = 0;
+  int ring;
+
+  while (!node_stack_B.empty()) {
+    ring = node_stack_B.top();
+    node_stack_B.pop();
+    node_stack_B_copy	= node_stack_B;
+
+    ideal ++;
+    while (!node_stack_B_copy.empty()) {
+      if (node_stack_B_copy.top() < ring) {
+        ideal --;
+        break;
+      }
+      node_stack_B_copy.pop();
+    }
+  }
+
+  while (!node_stack_C.empty()) {
+    ring = node_stack_C.top();
+    node_stack_C.pop();
+    node_stack_C_copy	= node_stack_C;
+
+    ideal ++;
+    while (!node_stack_C_copy.empty()) {
+      if (node_stack_C_copy.top() < ring) {
+        ideal --;
+        break;
+      }
+      node_stack_C_copy.pop();
+    }
+  }
+
+  int not_ideal = goal_size - ideal - in_place;
+  return ideal + 2 * not_ideal;
+
+}
+
+
+
+
 // Insert child to open list if correct conditions met
 void new_child(State *child, list<State*> *open, list<State*> *closed, State *goal, int beamsize, bool heuristic){
 
@@ -304,7 +373,7 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 		}
 
 	// Computing the heuristic
-	int h = (heuristic)?heuristic1(child,goal):heuristic0(child,goal);
+	int h = (heuristic)?heuristic2(child,goal):heuristic0(child,goal); //FIX
 
 	// Computing the estimated path cost
 	child->f = child->g + h;
@@ -315,7 +384,7 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 		if((*(it++))->f > child->f) break;
 	open->insert(it,child);
 
-	// Beam search size limit to open list 
+	// Beam search size limit to open list
 	if(open->size() > beamsize)
 		open->pop_back();
 
@@ -331,7 +400,7 @@ int search(State *start, State *goal, stack<State> *plan, int beamsize, bool heu
 
 	// Initializing open list
 	open.push_back(start);
-	
+
 	// Search loop
 	int num_exp_nodes = 0;
 	for(;;){
@@ -369,7 +438,7 @@ int search(State *start, State *goal, stack<State> *plan, int beamsize, bool heu
 
 		// Moving to parent node
 		state = state->parent;
-		
+
 		// Inserting position in the path vector
 		plan->push(*state);
 	}
