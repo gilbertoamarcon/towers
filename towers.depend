@@ -1,0 +1,20 @@
+# depslib dependency file v1.0
+1485985092 source:c:\users\erricane\desktop\towers\state.cpp
+	"state.hpp"
+
+1485985092 c:\users\erricane\desktop\towers\state.hpp
+	<stack>
+	<string>
+
+1486091428 source:c:\users\erricane\desktop\towers\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	<list>
+	<time.h>
+	<cstdlib>
+	<iostream>
+	<string>
+	"state.hpp"
+	<string.h>
+	<ctime>
+

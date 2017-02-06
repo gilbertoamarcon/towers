@@ -11,8 +11,8 @@
 
 #define NMAX		10000
 #define BSIZE		256
-#define VERBOSE		1
-#define INI_PS		7 //Fix 4
+#define VERBOSE		0
+#define INI_PS		4 //Fix 4
 #define END_PS		7 //Fix 7
 #define OUT_FILE	"out.csv"
 
@@ -71,10 +71,10 @@ int main(int argc, char **argv){
 	stack<Performance> performance_stack;
 
 	// For each heuristic
-	for(int h = 1; h >= 1; h--){//h >= 0 FIX
+	for(int h = 1; h >= 0; h--){//h >= 0 FIX
 
 		// For each beam size to test
-		for(int b = 7; b < 8; b++){ //b =0 FIX
+		for(int b = 0; b < 8; b++){ //b =0 FIX
 
 			list<State*> start_list;
 
@@ -124,18 +124,21 @@ int main(int argc, char **argv){
 				// Presenting results on screen
 				if(VERBOSE){
 					if(num_exp_nodes > 0){
-						printf("Problem %d.\n",problem_counter);
-						printf("Start: ");
-						display(start);
-						printf("Goal: ");
-						display(goal);
-						printf("Plan found.\n");
-						printf("%d expanded nodes.\n",num_exp_nodes);
-						printf("%d actions.\n",plan.size());
-						printf("%f seconds.\n",planning_time);
-						printf("Plan: \n");
-						print_plan(plan);
-						printf("\n");
+              if (perf.problem_size == 7 && perf.problem_number == 19) {
+                printf("Heuristic %d, beam size %d.\n", perf.heuristic, perf.beamsize);
+                printf("Problem %d.\n",problem_counter);
+                printf("Start: ");
+                display(start);
+                printf("Goal: ");
+                display(goal);
+                printf("Plan found.\n");
+                printf("%d expanded nodes.\n",num_exp_nodes);
+                printf("%d actions.\n",plan.size());
+                printf("%f seconds.\n",planning_time);
+                printf("Plan: \n");
+                print_plan(plan);
+                printf("\n");
+              }
 					}
 					else
 						printf("Plan failed.\n");
@@ -257,16 +260,17 @@ bool state_equal(State *sta, State *stb){
 	return true;
 }
 
-// Heuristic 0
+/*
 int heuristic0(State *node, State *goal){
 	stack<int> node_stack	= node->A;
 	stack<int> goal_stack	= goal->A;
 	int counter = goal_stack.size() - node_stack.size();
 	return counter;
 }
+*/
 
-// Heuristic 1
-int heuristic1(State *node, State *goal){
+// Heuristic 0
+int heuristic0(State *node, State *goal){
 	stack<int> node_stack	= node->A;
 	stack<int> goal_stack	= goal->A;
 	int counter = goal_stack.size() - node_stack.size();
@@ -282,7 +286,7 @@ int heuristic1(State *node, State *goal){
 }
 
 
-int heuristic2(State *node, State *goal) {
+int heuristic1(State *node, State *goal) {
   stack<int> node_stack	= node->A;
 	stack<int> goal_stack	= goal->A;
 	int goal_size = goal_stack.size();
@@ -373,7 +377,7 @@ void new_child(State *child, list<State*> *open, list<State*> *closed, State *go
 		}
 
 	// Computing the heuristic
-	int h = (heuristic)?heuristic2(child,goal):heuristic0(child,goal); //FIX
+	int h = (heuristic)?heuristic1(child,goal):heuristic0(child,goal); //FIX
 
 	// Computing the estimated path cost
 	child->f = child->g + h;
